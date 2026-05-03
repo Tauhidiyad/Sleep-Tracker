@@ -253,13 +253,17 @@ body::before {
     d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
   // ── If already signed in, go straight to the app ─────────────────────────
+  // authResolved flag prevents redirect firing before Firebase has fully
+  // checked the persisted session — avoids the sign-in loop on page load.
+  let authResolved = false;
   auth.onAuthStateChanged(user => {
-    if (user) {
+    if (user && authResolved) {
       window.location.href = 'Sleep_Tracker.html';
     }
+    authResolved = true;
   });
 
-  // ── Google sign-in ────────────────────────────────────────────────────────
+  // ── Google sign-in (popup — avoids redirect loop on GitHub Pages) ─────────
   function signInWithGoogle() {
     const btn  = document.getElementById('sign-in-btn');
     const text = document.getElementById('btn-text');
@@ -269,35 +273,21 @@ body::before {
     text.textContent = 'Signing in…';
     err.classList.remove('show');
 
-    // Use popup on desktop, redirect on mobile for better UX
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-    const provider  = new firebase.auth.GoogleAuthProvider();
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
 
-    const action = isMobile
-      ? auth.signInWithRedirect(provider)
-      : auth.signInWithPopup(provider);
-
-    if (!isMobile) {
-      action
-        .then(() => { window.location.href = 'Sleep_Tracker.html'; })
-        .catch(e => {
-          btn.disabled = false;
-          text.textContent = 'Continue with Google';
-          err.textContent = friendlyError(e.code);
-          err.classList.add('show');
-        });
-    }
-    // redirect flow: result handled by onAuthStateChanged above
+    auth.signInWithPopup(provider)
+      .then(() => {
+        window.location.href = 'Sleep_Tracker.html';
+      })
+      .catch(e => {
+        btn.disabled = false;
+        text.textContent = 'Continue with Google';
+        err.textContent = friendlyError(e.code);
+        err.classList.add('show');
+      });
   }
-
-  // Handle redirect result on page load (mobile flow)
-  auth.getRedirectResult().catch(e => {
-    if (e.code) {
-      const err = document.getElementById('error-msg');
-      err.textContent = friendlyError(e.code);
-      err.classList.add('show');
-    }
-  });
 
   function friendlyError(code) {
     const map = {
