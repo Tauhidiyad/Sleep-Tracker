@@ -252,17 +252,20 @@ body::before {
   document.getElementById('dateStamp').textContent =
     d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
-  // ── Force LOCAL persistence so auth survives page reloads ──────────────────
+  // ── Set LOCAL persistence first, then check auth state ──────────────────────
+  // LOCAL persistence stores auth in localStorage so it survives page reloads
+  // and cross-domain redirects (critical for GitHub Pages).
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
-    // If already signed in, go straight to the app
     auth.onAuthStateChanged(user => {
       if (user) {
+        // Already signed in — go straight to app
         window.location.href = 'Sleep_Tracker.html';
       }
+      // Not signed in — stay on this page, show the sign-in button
     });
   });
 
-  // ── Google sign-in (popup — avoids redirect loop on GitHub Pages) ─────────
+  // ── Google sign-in ────────────────────────────────────────────────────────
   function signInWithGoogle() {
     const btn  = document.getElementById('sign-in-btn');
     const text = document.getElementById('btn-text');
@@ -276,16 +279,17 @@ body::before {
     provider.addScope('email');
     provider.addScope('profile');
 
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
-      return auth.signInWithPopup(provider);
-    }).then(() => {
-      window.location.href = 'Sleep_Tracker.html';
-    }).catch(e => {
-      btn.disabled = false;
-      text.textContent = 'Continue with Google';
-      err.textContent = friendlyError(e.code);
-      err.classList.add('show');
-    });
+    // Persistence already set above — just sign in
+    auth.signInWithPopup(provider)
+      .then(() => {
+        window.location.href = 'Sleep_Tracker.html';
+      })
+      .catch(e => {
+        btn.disabled = false;
+        text.textContent = 'Continue with Google';
+        err.textContent = friendlyError(e.code);
+        err.classList.add('show');
+      });
   }
 
   function friendlyError(code) {
