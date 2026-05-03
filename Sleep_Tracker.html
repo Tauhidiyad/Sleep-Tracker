@@ -22,18 +22,9 @@ header p{color:var(--muted);font-size:.7rem;margin-top:6px;letter-spacing:.1em;t
 .card-title{font-size:.62rem;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
 .card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
 
-/* ── User bar ── */
-.user-bar{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:20px;}
-.user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border);}
-.user-avatar-placeholder{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;flex-shrink:0;}
-.user-name{font-size:.72rem;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.user-email{font-size:.58rem;color:var(--muted);}
-.sync-indicator{font-size:.58rem;color:var(--muted);display:flex;align-items:center;gap:4px;flex-shrink:0;}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--good);flex-shrink:0;}
-.sync-dot.syncing{background:var(--nap);animation:pulse .8s infinite;}
-.sync-dot.error{background:var(--bad);}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.sign-out-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.06em;padding:4px 9px;cursor:pointer;transition:color .15s,border-color .15s;text-transform:uppercase;flex-shrink:0;}
+/* ── Sign-out area ── */
+.header-signout{display:flex;justify-content:center;margin-bottom:10px;}
+.sign-out-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.06em;padding:4px 12px;cursor:pointer;transition:color .15s,border-color .15s;text-transform:uppercase;}
 .sign-out-btn:hover{color:var(--bad);border-color:var(--bad);}
 
 /* type toggle */
@@ -193,21 +184,8 @@ canvas{width:100%!important;}
 <header>
   <h1>Sleep <span>Tracker</span></h1>
   <p>Log · Visualise · Improve</p>
+  <div class="header-signout"><button class="sign-out-btn" onclick="signOut()">Sign out</button></div>
 </header>
-
-<!-- USER BAR -->
-<div class="user-bar" id="user-bar">
-  <div class="user-avatar-placeholder" id="user-avatar-wrap">?</div>
-  <div style="flex:1;min-width:0;">
-    <div class="user-name" id="user-name">—</div>
-    <div class="user-email" id="user-email">—</div>
-  </div>
-  <div class="sync-indicator">
-    <div class="sync-dot" id="sync-dot"></div>
-    <span id="sync-text">Synced</span>
-  </div>
-  <button class="sign-out-btn" onclick="signOut()">Sign out</button>
-</div>
 
 <!-- LOG FORM -->
 <div class="card">
@@ -332,7 +310,7 @@ canvas{width:100%!important;}
     <div class="em-states" id="em-states"></div>
     <div class="em-actions">
       <button class="em-btn-confirm" onclick="submitEnergySelected()">Confirm</button>
-      <button class="em-btn-skip" onclick="submitEnergy(null)">Skip</button>
+      <button class="em-btn-skip" onclick="submitEnergy(-1)">Skip</button>
     </div>
   </div>
 </div>
@@ -373,17 +351,6 @@ auth.onAuthStateChanged(user => {
 function showApp(user) {
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('app-container').style.display = '';
-
-  // Populate user bar
-  document.getElementById('user-name').textContent  = user.displayName || 'User';
-  document.getElementById('user-email').textContent = user.email || '';
-
-  const wrap = document.getElementById('user-avatar-wrap');
-  if (user.photoURL) {
-    wrap.innerHTML = `<img class="user-avatar" src="${user.photoURL}" alt="avatar">`;
-  } else {
-    wrap.textContent = (user.displayName||'U')[0].toUpperCase();
-  }
 }
 
 function signOut() {
@@ -391,10 +358,10 @@ function signOut() {
   auth.signOut().then(() => { window.location.href = 'index.html'; });
 }
 
-// ── Sync indicator helpers ─────────────────────────────────────────────────
-function setSyncing()  { document.getElementById('sync-dot').className='sync-dot syncing'; document.getElementById('sync-text').textContent='Syncing…'; }
-function setSynced()   { document.getElementById('sync-dot').className='sync-dot'; document.getElementById('sync-text').textContent='Synced'; }
-function setSyncError(){ document.getElementById('sync-dot').className='sync-dot error'; document.getElementById('sync-text').textContent='Sync error'; }
+// ── Sync helpers (silent) ──────────────────────────────────────────────────
+function setSyncing()  {}
+function setSynced()   {}
+function setSyncError(){ console.warn('Firestore sync error'); }
 
 // ── Firestore path helper ──────────────────────────────────────────────────
 function sessionsRef(uid) {
@@ -493,7 +460,8 @@ function addEntry() {
   const bed  = timeVals.bed;
   const wake = timeVals.wake;
   if (!date||!bed||!wake) { alert('Please fill in date, sleep time and wake time.'); return; }
-  const entry = { id:uid(), date, type:currentType, bed, wake, dur:calcDur(bed,wake), energy:null };
+  // energy stored as -1 (unrated) to avoid Firestore null issues
+  const entry = { id:uid(), date, type:currentType, bed, wake, dur:calcDur(bed,wake), energy:-1 };
   saveSession(entry);
   timeVals.bed=null; timeVals.wake=null;
   setTriggerLbl('bed',null); setTriggerLbl('wake',null);
@@ -512,7 +480,7 @@ function render(){ renderStats(); renderChart(); renderList(); }
 function renderStats() {
   const nights=sessions.filter(s=>s.type==='night');
   const naps  =sessions.filter(s=>s.type==='nap');
-  const rated =sessions.filter(s=>s.energy!==null);
+  const rated =sessions.filter(s=>s.energy > 0);
   const avg=arr=>arr.length?fmtDur(arr.reduce((a,s)=>a+s.dur,0)/arr.length):'—';
   document.getElementById('stat-avg').textContent    = avg(nights);
   document.getElementById('stat-nap').textContent    = avg(naps);
@@ -532,7 +500,7 @@ function renderList() {
       const [wh,wm]=s.wake.split(':').map(Number);
       const bedFmt=fmt12(bh,bm), wakeFmt=fmt12(wh,wm);
       const EICO=['','🧱','🧊','🐢','🚶','🚲','🛹','🏇','🏎️','🚀','⚡'];
-      const eHtml=s.energy!==null
+      const eHtml=s.energy > 0
         ?`<span class="session-mood">${EICO[s.energy]} <span style="font-size:.65rem;color:var(--muted)">${s.energy}/10</span></span>`
         :`<span class="mood-empty" onclick="rateEnergy('${s.id}')">· rate</span>`;
       return `<div class="session-item">
@@ -567,9 +535,9 @@ function renderChart() {
   const byDate={};
   sessions.forEach(s=>{
     if(!byDate[s.date])byDate[s.date]={nightDur:0,napDur:0,energies:[],nightEnergies:[],napEnergies:[]};
-    if(s.type==='night'){byDate[s.date].nightDur+=s.dur;if(s.energy!==null)byDate[s.date].nightEnergies.push(s.energy);}
-    else{byDate[s.date].napDur+=s.dur;if(s.energy!==null)byDate[s.date].napEnergies.push(s.energy);}
-    if(s.energy!==null)byDate[s.date].energies.push(s.energy);
+    if(s.type==='night'){byDate[s.date].nightDur+=s.dur;if(s.energy > 0)byDate[s.date].nightEnergies.push(s.energy);}
+    else{byDate[s.date].napDur+=s.dur;if(s.energy > 0)byDate[s.date].napEnergies.push(s.energy);}
+    if(s.energy > 0)byDate[s.date].energies.push(s.energy);
   });
   const dates=Object.keys(byDate).sort().slice(-20);
   if(!dates.length){legendEl.innerHTML='';labelsEl.innerHTML='';return;}
@@ -784,7 +752,7 @@ function showEnergyModal(type) {
   document.getElementById('energy-overlay').classList.add('show');
 }
 
-function submitEnergySelected() { submitEnergy(selectedEnergy); }
+function submitEnergySelected() { submitEnergy(selectedEnergy && selectedEnergy > 0 ? selectedEnergy : -1); }
 
 function submitEnergy(score) {
   if(pendingEnergyId) {
@@ -803,7 +771,7 @@ function rateEnergy(id) {
   showEnergyModal(s?s.type:'night');
 }
 
-document.getElementById('energy-overlay').addEventListener('click',function(e){if(e.target===this)submitEnergy(null);});
+document.getElementById('energy-overlay').addEventListener('click',function(e){if(e.target===this)submitEnergy(-1);});
 
 // ── Time Picker ────────────────────────────────────────────────────────────
 function buildDrums() {
