@@ -22,11 +22,6 @@ header p{color:var(--muted);font-size:.7rem;margin-top:6px;letter-spacing:.1em;t
 .card-title{font-size:.62rem;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
 .card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
 
-/* ── Sign-out area ── */
-.header-signout{display:flex;justify-content:center;margin-bottom:10px;}
-.sign-out-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.06em;padding:4px 12px;cursor:pointer;transition:color .15s,border-color .15s;text-transform:uppercase;}
-.sign-out-btn:hover{color:var(--bad);border-color:var(--bad);}
-
 /* type toggle */
 .type-toggle{display:grid;grid-template-columns:1fr 1fr;background:var(--surface2);border-radius:10px;padding:4px;margin-bottom:16px;border:1px solid var(--border);}
 .type-btn{padding:9px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:.75rem;cursor:pointer;transition:all .2s;letter-spacing:.05em;}
@@ -184,7 +179,7 @@ canvas{width:100%!important;}
 <header>
   <h1>Sleep <span>Tracker</span></h1>
   <p>Log · Visualise · Improve</p>
-  <div class="header-signout"><button class="sign-out-btn" onclick="signOut()">Sign out</button></div>
+
 </header>
 
 <!-- LOG FORM -->
@@ -369,13 +364,16 @@ function sessionsRef(uid) {
 }
 
 // ── Real-time listener ─────────────────────────────────────────────────────
+let _pendingWrites = 0;
 function subscribeToSessions(uid) {
   setSyncing();
   unsubscribeFirestore = sessionsRef(uid)
     .orderBy('date').orderBy('bed')
     .onSnapshot(snapshot => {
-      sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      render();
+      if (_pendingWrites === 0) {
+        sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        render();
+      }
       setSynced();
     }, err => {
       console.error('Firestore error:', err);
@@ -386,12 +384,13 @@ function subscribeToSessions(uid) {
 // ── Write helpers ──────────────────────────────────────────────────────────
 async function saveSession(entry) {
   if (!currentUser) return;
-  setSyncing();
+  setSyncing(); _pendingWrites++;
   const { id, ...data } = entry;
   try {
     await sessionsRef(currentUser.uid).doc(id).set(data);
     setSynced();
   } catch(e) { console.error(e); setSyncError(); }
+  finally { _pendingWrites = Math.max(0, _pendingWrites - 1); }
 }
 
 async function updateSession(id, patch) {
@@ -405,11 +404,12 @@ async function updateSession(id, patch) {
 
 async function removeSession(id) {
   if (!currentUser) return;
-  setSyncing();
+  setSyncing(); _pendingWrites++;
   try {
     await sessionsRef(currentUser.uid).doc(id).delete();
     setSynced();
   } catch(e) { console.error(e); setSyncError(); }
+  finally { _pendingWrites = Math.max(0, _pendingWrites - 1); }
 }
 
 // ── App state ──────────────────────────────────────────────────────────────
@@ -475,6 +475,9 @@ function addEntry() {
 }
 
 function deleteSession(id) {
+  // Optimistic local remove so UI updates instantly
+  sessions = sessions.filter(s => s.id !== id);
+  render();
   removeSession(id);
 }
 
