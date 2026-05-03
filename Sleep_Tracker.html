@@ -341,12 +341,18 @@ let unsubscribeFirestore = null;
 
 auth.onAuthStateChanged(user => {
   if (!user) {
-    window.location.href = 'index.html';
+    // Give Firebase a moment in case auth is still restoring from persistence
+    setTimeout(() => {
+      if (!currentUser) window.location.href = 'index.html';
+    }, 2000);
     return;
   }
   currentUser = user;
   showApp(user);
-  subscribeToSessions(user.uid);
+  flushWriteQueue();
+  if (!unsubscribeFirestore) {
+    subscribeToSessions(user.uid);
+  }
 });
 
 function showApp(user) {
@@ -398,8 +404,18 @@ function subscribeToSessions(uid) {
 }
 
 // ── Write helpers ──────────────────────────────────────────────────────────
+// Queue operations that arrive before auth resolves
+let _writeQueue = [];
+
+function flushWriteQueue() {
+  while (_writeQueue.length) {
+    const fn = _writeQueue.shift();
+    fn();
+  }
+}
+
 async function saveSession(entry) {
-  if (!currentUser) return;
+  if (!currentUser) { _writeQueue.push(() => saveSession(entry)); return; }
   setSyncing(); _pendingWrites++;
   const { id, ...data } = entry;
   try {
@@ -410,7 +426,7 @@ async function saveSession(entry) {
 }
 
 async function updateSession(id, patch) {
-  if (!currentUser) return;
+  if (!currentUser) { _writeQueue.push(() => updateSession(id, patch)); return; }
   setSyncing();
   try {
     await sessionsRef(currentUser.uid).doc(id).update(patch);
@@ -419,7 +435,7 @@ async function updateSession(id, patch) {
 }
 
 async function removeSession(id) {
-  if (!currentUser) return;
+  if (!currentUser) { _writeQueue.push(() => removeSession(id)); return; }
   setSyncing(); _pendingWrites++;
   try {
     await sessionsRef(currentUser.uid).doc(id).delete();
