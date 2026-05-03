@@ -348,6 +348,7 @@ auth.onAuthStateChanged(user => {
     return;
   }
   currentUser = user;
+  console.log('[SleepTracker] Auth resolved, uid:', user.uid);
   showApp(user);
   flushWriteQueue();
   if (!unsubscribeFirestore) {
@@ -386,16 +387,13 @@ function sessionsRef(uid) {
 }
 
 // ── Real-time listener ─────────────────────────────────────────────────────
-let _pendingWrites = 0;
 function subscribeToSessions(uid) {
   setSyncing();
   unsubscribeFirestore = sessionsRef(uid)
     .orderBy('date').orderBy('bed')
     .onSnapshot(snapshot => {
-      if (_pendingWrites === 0) {
-        sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        render();
-      }
+      sessions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
       setSynced();
     }, err => {
       console.error('Firestore error:', err);
@@ -416,13 +414,14 @@ function flushWriteQueue() {
 
 async function saveSession(entry) {
   if (!currentUser) { _writeQueue.push(() => saveSession(entry)); return; }
-  setSyncing(); _pendingWrites++;
+  setSyncing();
   const { id, ...data } = entry;
+  console.log('[SleepTracker] Saving session:', id, data);
   try {
     await sessionsRef(currentUser.uid).doc(id).set(data);
+    console.log('[SleepTracker] Session saved OK:', id);
     setSynced();
-  } catch(e) { console.error(e); setSyncError(); }
-  finally { _pendingWrites = Math.max(0, _pendingWrites - 1); }
+  } catch(e) { console.error('[SleepTracker] Save error:', e); setSyncError(); }
 }
 
 async function updateSession(id, patch) {
@@ -436,12 +435,11 @@ async function updateSession(id, patch) {
 
 async function removeSession(id) {
   if (!currentUser) { _writeQueue.push(() => removeSession(id)); return; }
-  setSyncing(); _pendingWrites++;
+  setSyncing();
   try {
     await sessionsRef(currentUser.uid).doc(id).delete();
     setSynced();
   } catch(e) { console.error(e); setSyncError(); }
-  finally { _pendingWrites = Math.max(0, _pendingWrites - 1); }
 }
 
 // ── App state ──────────────────────────────────────────────────────────────
