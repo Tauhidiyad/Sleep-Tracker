@@ -252,15 +252,14 @@ body::before {
   document.getElementById('dateStamp').textContent =
     d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
-  // ── If already signed in, go straight to the app ─────────────────────────
-  // authResolved flag prevents redirect firing before Firebase has fully
-  // checked the persisted session — avoids the sign-in loop on page load.
-  let authResolved = false;
-  auth.onAuthStateChanged(user => {
-    if (user && authResolved) {
-      window.location.href = 'Sleep_Tracker.html';
-    }
-    authResolved = true;
+  // ── Force LOCAL persistence so auth survives page reloads ──────────────────
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
+    // If already signed in, go straight to the app
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        window.location.href = 'Sleep_Tracker.html';
+      }
+    });
   });
 
   // ── Google sign-in (popup — avoids redirect loop on GitHub Pages) ─────────
@@ -277,16 +276,16 @@ body::before {
     provider.addScope('email');
     provider.addScope('profile');
 
-    auth.signInWithPopup(provider)
-      .then(() => {
-        window.location.href = 'Sleep_Tracker.html';
-      })
-      .catch(e => {
-        btn.disabled = false;
-        text.textContent = 'Continue with Google';
-        err.textContent = friendlyError(e.code);
-        err.classList.add('show');
-      });
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
+      return auth.signInWithPopup(provider);
+    }).then(() => {
+      window.location.href = 'Sleep_Tracker.html';
+    }).catch(e => {
+      btn.disabled = false;
+      text.textContent = 'Continue with Google';
+      err.textContent = friendlyError(e.code);
+      err.classList.add('show');
+    });
   }
 
   function friendlyError(code) {

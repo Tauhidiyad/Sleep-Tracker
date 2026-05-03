@@ -335,25 +335,42 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db   = firebase.firestore();
 
+// Enable Firestore offline persistence so writes survive brief connectivity gaps
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  console.warn('[SleepTracker] Offline persistence unavailable:', err.code);
+});
+
 // ── Auth gate ──────────────────────────────────────────────────────────────
 let currentUser = null;
 let unsubscribeFirestore = null;
 
-auth.onAuthStateChanged(user => {
-  if (!user) {
-    // Give Firebase a moment in case auth is still restoring from persistence
-    setTimeout(() => {
-      if (!currentUser) window.location.href = 'index.html';
-    }, 2000);
-    return;
-  }
-  currentUser = user;
-  console.log('[SleepTracker] Auth resolved, uid:', user.uid);
-  showApp(user);
-  flushWriteQueue();
-  if (!unsubscribeFirestore) {
-    subscribeToSessions(user.uid);
-  }
+// Force LOCAL persistence so auth survives page reloads & cross-domain redirects
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(() => {
+  auth.onAuthStateChanged(user => {
+    if (!user) {
+      setTimeout(() => {
+        if (!currentUser) window.location.href = 'index.html';
+      }, 3000);
+      return;
+    }
+    currentUser = user;
+    console.log('[SleepTracker] Auth resolved, uid:', user.uid);
+    showApp(user);
+    flushWriteQueue();
+    if (!unsubscribeFirestore) {
+      subscribeToSessions(user.uid);
+    }
+  });
+}).catch(err => {
+  console.error('[SleepTracker] Persistence error:', err);
+  // Fallback: still try to listen even if persistence fails
+  auth.onAuthStateChanged(user => {
+    if (!user) { setTimeout(() => { if (!currentUser) window.location.href = 'index.html'; }, 3000); return; }
+    currentUser = user;
+    showApp(user);
+    flushWriteQueue();
+    if (!unsubscribeFirestore) subscribeToSessions(user.uid);
+  });
 });
 
 function showApp(user) {
