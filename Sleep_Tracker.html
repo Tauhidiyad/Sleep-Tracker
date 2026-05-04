@@ -132,20 +132,6 @@ canvas{width:100%!important;}
 .tp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
 .tp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
 .tp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 4px;margin-top:28px;}
-/* Date picker drums — compact, equal-width, 3-item visible */
-.dp-drums{display:flex;align-items:flex-start;justify-content:center;gap:6px;margin-bottom:14px;}
-.dp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
-.dp-drum{width:100%;height:144px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
-.dp-drum::-webkit-scrollbar{display:none;}
-.dp-drum::before,.dp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:48px;pointer-events:none;z-index:2;}
-.dp-drum::before{top:0;background:linear-gradient(to bottom,var(--surface2) 30%,transparent);}
-.dp-drum::after{bottom:0;background:linear-gradient(to top,var(--surface2) 30%,transparent);}
-.dp-drum-hl{position:absolute;top:50%;left:4px;right:4px;height:48px;transform:translateY(-50%);border-radius:6px;pointer-events:none;z-index:1;background:transparent;}
-.dp-item{height:48px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--muted);scroll-snap-align:center;cursor:pointer;user-select:none;transition:color .12s,font-size .12s;}
-.dp-item.active{color:var(--text);font-size:1.3rem;}
-.dp-pad{height:48px;flex-shrink:0;}
-/* dp-sep: label(22px) + half-drum(72px) - half-glyph(~8px) = 86px */
-.dp-sep{font-family:'DM Mono',monospace;font-size:.9rem;color:var(--muted);padding:0 2px;margin-top:86px;line-height:1;}
 .tp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
 .tp-drum::-webkit-scrollbar{display:none;}
 .tp-drum::before,.tp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
@@ -210,11 +196,7 @@ canvas{width:100%!important;}
   <div class="form-row">
     <div class="field">
       <label>Date</label>
-      <button class="time-trigger set" id="date-trigger" onclick="openDatePicker()">
-        <span id="date-trigger-lbl">Select date</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      </button>
-      <input type="hidden" id="inp-date">
+      <input type="date" id="inp-date">
     </div>
     <div class="field">
       <label>Duration (auto)</label>
@@ -292,34 +274,6 @@ canvas{width:100%!important;}
     </div>
     <div class="tp-readout" id="tp-readout">12:00 AM</div>
     <button class="btn" id="tp-confirm-btn" onclick="confirmPicker()">Sleep-In Time</button>
-  </div>
-</div>
-
-<!-- DATE PICKER OVERLAY -->
-<div class="overlay" id="dp-overlay">
-  <div class="modal tp-modal">
-    <div class="tp-head">
-      <span class="tp-title">Date</span>
-      <button class="tp-x" onclick="closeDatePicker()">✕</button>
-    </div>
-    <div class="dp-drums">
-      <div class="dp-col">
-        <div class="tp-col-lbl">Day</div>
-        <div class="dp-drum" id="dp-drum-d"><div class="dp-drum-hl"></div></div>
-      </div>
-      <div class="dp-sep">/</div>
-      <div class="dp-col">
-        <div class="tp-col-lbl">Month</div>
-        <div class="dp-drum" id="dp-drum-m"><div class="dp-drum-hl"></div></div>
-      </div>
-      <div class="dp-sep">/</div>
-      <div class="dp-col">
-        <div class="tp-col-lbl">Year</div>
-        <div class="dp-drum" id="dp-drum-y"><div class="dp-drum-hl"></div></div>
-      </div>
-    </div>
-    <div class="tp-readout" id="dp-readout">01 Jan 2026</div>
-    <button class="btn" onclick="confirmDatePicker()">Set Date</button>
   </div>
 </div>
 
@@ -405,7 +359,7 @@ auth.onAuthStateChanged(user => {
 function showApp(user) {
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('app-container').style.display = '';
-  loadPendingBedTime(user.uid);
+  loadPendingSleepIn();
 }
 
 function signOut() {
@@ -545,8 +499,8 @@ function addEntry() {
   sessions.push(entry);
   sessions.sort((a,b) => (a.date+a.bed).localeCompare(b.date+b.bed));
   render();
-  saveSession(entry); // persist to Firestore in background
-  clearPendingBedTime(); // remove temporary sleep-in hold
+  saveSession(entry);
+  clearPendingSleepIn();
   timeVals.bed=null; timeVals.wake=null;
   setTriggerLbl('bed',null); setTriggerLbl('wake',null);
   document.getElementById('dur-display').textContent='—';
@@ -919,8 +873,7 @@ function openPicker(target){
   document.getElementById('tp-confirm-btn').textContent=target==='bed'?'Sleep-In Time':'Woke-Up Time';
   document.getElementById('tp-overlay').classList.add('show');
   const existing=timeVals[target];
-  const nowT=new Date();
-  let h24=nowT.getHours(),m=nowT.getMinutes();
+  const _now=new Date();let h24=_now.getHours(),m=_now.getMinutes();
   if(existing){const[hh,mm]=existing.split(':').map(Number);h24=hh;m=mm;}
   const {h:h12,ap}=to12(h24);
   setAP(ap);_lastH=h12;_lastM=m;
@@ -939,12 +892,32 @@ function confirmPicker(){
   const str=`${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   timeVals[pickerTarget]=str;
   setTriggerLbl(pickerTarget,str);
-  if(pickerTarget==='bed'){
-    savePendingBedTime(str, document.getElementById('inp-date').value);
-  }
   if(timeVals.bed&&timeVals.wake)
     document.getElementById('dur-display').textContent=fmtDur(calcDur(timeVals.bed,timeVals.wake));
+  if(pickerTarget==='bed') savePendingSleepIn(str);
   haptic();closePicker();
+}
+
+function pendingRef(uid){ return db.collection('users').doc(uid).collection('meta').doc('pendingSleepIn'); }
+async function savePendingSleepIn(bedTime){
+  if(!currentUser) return;
+  try{ await pendingRef(currentUser.uid).set({bed:bedTime}); }
+  catch(e){ console.warn('[SleepTracker] Could not save pending sleep-in:',e); }
+}
+async function clearPendingSleepIn(){
+  if(!currentUser) return;
+  try{ await pendingRef(currentUser.uid).delete(); }
+  catch(e){ console.warn('[SleepTracker] Could not clear pending sleep-in:',e); }
+}
+async function loadPendingSleepIn(){
+  if(!currentUser) return;
+  try{
+    const doc=await pendingRef(currentUser.uid).get();
+    if(doc.exists){
+      const {bed}=doc.data();
+      if(bed&&!timeVals.bed){ timeVals.bed=bed; setTriggerLbl('bed',bed); }
+    }
+  } catch(e){ console.warn('[SleepTracker] Could not load pending sleep-in:',e); }
 }
 function setTriggerLbl(target,val){
   const lbl=document.getElementById(`trig-${target}-lbl`);
@@ -985,135 +958,6 @@ nightBtn.addEventListener('touchstart',()=>{_holdTimer=setTimeout(()=>openIconPi
 nightBtn.addEventListener('touchend',()=>clearTimeout(_holdTimer));
 nightBtn.addEventListener('touchmove',()=>clearTimeout(_holdTimer));
 document.getElementById('night-icon-el').textContent=chosenNightIcon;
-
-// ── Pending Sleep-In time (cloud) ──────────────────────────────────────────
-function pendingBedRef(uid) {
-  return db.collection('users').doc(uid).collection('meta').doc('pendingBed');
-}
-async function savePendingBedTime(bedTime, dateVal) {
-  if (!currentUser) return;
-  try { await pendingBedRef(currentUser.uid).set({ bed: bedTime, date: dateVal, savedAt: Date.now() }); }
-  catch(e) { console.warn('[SleepTracker] pendingBed save error:', e); }
-}
-async function clearPendingBedTime() {
-  if (!currentUser) return;
-  try { await pendingBedRef(currentUser.uid).delete(); } catch(e) {}
-}
-async function loadPendingBedTime(uid) {
-  try {
-    const doc = await pendingBedRef(uid).get();
-    if (doc.exists) {
-      const { bed, date } = doc.data();
-      if (bed) {
-        timeVals.bed = bed;
-        setTriggerLbl('bed', bed);
-        if (date) { document.getElementById('inp-date').value = date; updateDateTriggerLabel(date); }
-        console.log('[SleepTracker] Restored pending sleep-in time:', bed);
-      }
-    }
-  } catch(e) { console.warn('[SleepTracker] pendingBed load error:', e); }
-}
-
-// ── Date Picker (drum style) ────────────────────────────────────────────────
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DP_ITEM_H = 48;
-
-function buildDateDrums() {
-  const dD = document.getElementById('dp-drum-d');
-  const dM = document.getElementById('dp-drum-m');
-  const dY = document.getElementById('dp-drum-y');
-  function fillDrum(drum, values, fmt) {
-    const t = document.createElement('div'); t.className='dp-pad'; drum.appendChild(t);
-    values.forEach(v => {
-      const el = document.createElement('div'); el.className='dp-item';
-      el.textContent = fmt ? fmt(v) : String(v).padStart(2,'0');
-      el.dataset.v = v; drum.appendChild(el);
-    });
-    const b = document.createElement('div'); b.className='dp-pad'; drum.appendChild(b);
-  }
-  const curYear = new Date().getFullYear();
-  fillDrum(dD, Array.from({length:31},(_,i)=>i+1), null);
-  fillDrum(dM, Array.from({length:12},(_,i)=>i+1), v => MONTHS_SHORT[v-1]);
-  fillDrum(dY, Array.from({length:6},(_,i)=>curYear-2+i), v => String(v));
-  dD.addEventListener('scroll',()=>{highlightDpCentre(dD);refreshDpReadout();},{passive:true});
-  dM.addEventListener('scroll',()=>{highlightDpCentre(dM);refreshDpReadout();},{passive:true});
-  dY.addEventListener('scroll',()=>{highlightDpCentre(dY);refreshDpReadout();},{passive:true});
-}
-buildDateDrums();
-
-let _lastDpD=-1, _lastDpM=-1, _lastDpY=-1;
-function highlightDpCentre(drum) {
-  const centre = drum.scrollTop + drum.clientHeight/2;
-  drum.querySelectorAll('.dp-item').forEach(el => {
-    const mid = el.offsetTop + el.offsetHeight/2;
-    el.classList.toggle('active', Math.abs(centre-mid) < DP_ITEM_H/2);
-  });
-  const cur = getDpSelected(drum);
-  if(drum.id==='dp-drum-d' && cur!==_lastDpD){_lastDpD=cur;haptic();}
-  if(drum.id==='dp-drum-m' && cur!==_lastDpM){_lastDpM=cur;haptic();}
-  if(drum.id==='dp-drum-y' && cur!==_lastDpY){_lastDpY=cur;haptic();}
-}
-function snapDpToValue(drum, value) {
-  let found = null;
-  drum.querySelectorAll('.dp-item').forEach(el => { if(parseInt(el.dataset.v)===value) found=el; });
-  if(!found) return;
-  drum.scrollTop = found.offsetTop - (drum.clientHeight/2) + (DP_ITEM_H/2);
-  highlightDpCentre(drum);
-}
-function getDpSelected(drum) {
-  const centre = drum.scrollTop + drum.clientHeight/2;
-  let best=null, bestD=Infinity;
-  drum.querySelectorAll('.dp-item').forEach(el => {
-    const d = Math.abs((el.offsetTop+el.offsetHeight/2)-centre);
-    if(d<bestD){bestD=d;best=el;}
-  });
-  return best ? parseInt(best.dataset.v) : 1;
-}
-function refreshDpReadout() {
-  const d = getDpSelected(document.getElementById('dp-drum-d'));
-  const m = getDpSelected(document.getElementById('dp-drum-m'));
-  const y = getDpSelected(document.getElementById('dp-drum-y'));
-  document.getElementById('dp-readout').textContent =
-    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m-1]} ${y}`;
-}
-function openDatePicker() {
-  document.getElementById('dp-overlay').classList.add('show');
-  haptic();
-  const cur = document.getElementById('inp-date').value;
-  let d,m,y;
-  if(cur) { [y,m,d]=cur.split('-').map(Number); }
-  else { const now=new Date(); y=now.getFullYear(); m=now.getMonth()+1; d=now.getDate(); }
-  _lastDpD=d; _lastDpM=m; _lastDpY=y;
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    snapDpToValue(document.getElementById('dp-drum-d'), d);
-    snapDpToValue(document.getElementById('dp-drum-m'), m);
-    snapDpToValue(document.getElementById('dp-drum-y'), y);
-    refreshDpReadout();
-  }));
-}
-function closeDatePicker() { document.getElementById('dp-overlay').classList.remove('show'); }
-function confirmDatePicker() {
-  const d = getDpSelected(document.getElementById('dp-drum-d'));
-  const m = getDpSelected(document.getElementById('dp-drum-m'));
-  const y = getDpSelected(document.getElementById('dp-drum-y'));
-  const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  document.getElementById('inp-date').value = iso;
-  updateDateTriggerLabel(iso);
-  if(timeVals.bed) savePendingBedTime(timeVals.bed, iso);
-  closeDatePicker(); haptic();
-}
-function updateDateTriggerLabel(iso) {
-  if(!iso) return;
-  const [y,m,d] = iso.split('-').map(Number);
-  document.getElementById('date-trigger-lbl').textContent =
-    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m-1]} ${y}`;
-  document.getElementById('date-trigger').classList.add('set');
-}
-document.getElementById('dp-overlay').addEventListener('click', function(e){
-  if(e.target===this) closeDatePicker();
-});
-// Init date label on load
-(function(){ const iso=document.getElementById('inp-date').value; if(iso) updateDateTriggerLabel(iso); })();
 
 // ── Haptic ─────────────────────────────────────────────────────────────────
 function haptic(){if(navigator.vibrate)navigator.vibrate(6);}
