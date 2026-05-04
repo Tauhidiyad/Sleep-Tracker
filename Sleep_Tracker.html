@@ -151,7 +151,7 @@ canvas{width:100%!important;}
 .tp-drums{display:flex;align-items:flex-start;justify-content:center;gap:0;margin-bottom:14px;}
 .tp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
 .tp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
-.tp-sep{font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--muted);padding:0 2px;margin-top:96px;line-height:1;}
+.tp-sep{font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--muted);padding:0 2px;margin-top:90px;line-height:1;}
 .tp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
 .tp-drum::-webkit-scrollbar{display:none;}
 .tp-drum::before,.tp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
@@ -553,7 +553,7 @@ const MONTHS_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct',
   document.getElementById('inp-date').value=iso;
   const d=now.getDate(),m=now.getMonth(),y=now.getFullYear();
   document.getElementById('trig-date-lbl').textContent=
-    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m]} ${y}`;
+    `${String(d).padStart(2,'0')} / ${String(m+1).padStart(2,'0')} / ${y}`;
   document.getElementById('trig-date').classList.add('set');
 })();
 buildDrums();
@@ -999,7 +999,7 @@ function confirmDatePicker(){
   const iso=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   document.getElementById('inp-date').value=iso;
   document.getElementById('trig-date-lbl').textContent=
-    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m-1]} ${y}`;
+    `${String(d).padStart(2,'0')} / ${String(m).padStart(2,'0')} / ${y}`;
   document.getElementById('trig-date').classList.add('set');
   haptic();closeDatePicker();
 }
