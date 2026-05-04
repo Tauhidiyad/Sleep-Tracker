@@ -369,7 +369,7 @@ let currentUser = null;
 let unsubscribeFirestore = null;
 
 // Listen for auth state — Firebase restores from LOCAL persistence automatically
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
   if (!user) {
     // Small delay to let Firebase finish restoring persisted auth session
     setTimeout(() => {
@@ -379,17 +379,17 @@ auth.onAuthStateChanged(user => {
   }
   currentUser = user;
   console.log('[SleepTracker] Auth OK, uid:', user.uid);
-  showApp(user);
   flushWriteQueue();
+  await showApp(user);
   if (!unsubscribeFirestore) {
     subscribeToSessions(user.uid);
   }
 });
 
-function showApp(user) {
+async function showApp(user) {
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('app-container').style.display = '';
-  restorePendingBedTime(); // auto-fill Sleep In time saved from last night
+  await restorePendingBedTime(); // auto-fill Sleep In time saved from last night
 }
 
 function signOut() {
