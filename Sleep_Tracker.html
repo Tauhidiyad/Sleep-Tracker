@@ -899,26 +899,37 @@ function confirmPicker(){
 }
 
 // Pending Sleep-In cloud persistence
-function _pendingRef(){ return db.collection('users').doc(currentUser.uid).collection('meta').doc('pendingSleepIn'); }
+function _userRef(){ return db.collection('users').doc(currentUser.uid); }
 
 function pendingSleepInWrite(bedTime){
   if(currentUser){
-    _pendingRef().set({bed:bedTime}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e));
+    _userRef().set({pendingSleepIn: bedTime}, {merge:true}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e));
   } else {
-    _writeQueue.push(()=>_pendingRef().set({bed:bedTime}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e)));
+    _writeQueue.push(()=>_userRef().set({pendingSleepIn: bedTime}, {merge:true}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e)));
   }
 }
 
 function pendingSleepInClear(){
-  if(currentUser){ _pendingRef().delete().catch(e=>console.warn('[SleepTracker] pendingSleepIn clear failed:',e)); }
+  if(currentUser){
+    _userRef().update({pendingSleepIn: firebase.firestore.FieldValue.delete()}).catch(e=>console.warn('[SleepTracker] pendingSleepIn clear failed:',e));
+  }
 }
 
 async function pendingSleepInLoad(){
   if(!currentUser) return;
   try{
-    const doc=await _pendingRef().get();
-    if(doc.exists){ const {bed}=doc.data(); if(bed&&!timeVals.bed){ timeVals.bed=bed; setTriggerLbl('bed',bed); } }
-  }catch(e){ console.warn('[SleepTracker] pendingSleepIn load failed:',e); }
+    const doc=await _userRef().get({source:'server'});
+    if(doc.exists){
+      const data=doc.data();
+      if(data.pendingSleepIn && !timeVals.bed){ timeVals.bed=data.pendingSleepIn; setTriggerLbl('bed',data.pendingSleepIn); }
+    }
+  }catch(e){
+    // fallback to cache if server unreachable
+    try{
+      const doc=await _userRef().get();
+      if(doc.exists){ const data=doc.data(); if(data.pendingSleepIn&&!timeVals.bed){ timeVals.bed=data.pendingSleepIn; setTriggerLbl('bed',data.pendingSleepIn); } }
+    }catch(e2){ console.warn('[SleepTracker] pendingSleepIn load failed:',e2); }
+  }
 }
 function setTriggerLbl(target,val){
   const lbl=document.getElementById(`trig-${target}-lbl`);
