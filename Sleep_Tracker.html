@@ -394,6 +394,7 @@ function subscribeToSessions(uid) {
     .orderBy('date')
     .onSnapshot(snapshot => {
       sessions = snapshot.docs
+        .filter(d => d.id !== '_draft')
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.date + a.bed).localeCompare(b.date + b.bed));
       render();
@@ -446,36 +447,40 @@ async function removeSession(id) {
 }
 
 // ── Draft Sleep-In persistence ─────────────────────────────────────────────
+// Stored inside the sessions subcollection as _draft so existing rules permit it.
 function draftRef(uid) {
-  return db.collection('users').doc(uid).collection('draft').doc('sleepIn');
+  return sessionsRef(uid).doc('_draft');
 }
 
 async function saveSleepInDraft(bedTime) {
-  if (!currentUser) return;
+  if (!currentUser) { console.warn('[SleepTracker] saveSleepInDraft: no user'); return; }
   try {
-    await draftRef(currentUser.uid).set({ bed: bedTime, savedAt: new Date().toISOString() });
-  } catch(e) { console.warn('[SleepTracker] Draft save error:', e); }
+    await draftRef(currentUser.uid).set({ _isDraft: true, bed: bedTime, savedAt: new Date().toISOString() });
+    console.log('[SleepTracker] Draft saved:', bedTime);
+  } catch(e) { console.error('[SleepTracker] Draft save FAILED:', e.code, e.message); }
 }
 
 async function loadSleepInDraft() {
-  if (!currentUser) return;
+  if (!currentUser) { console.warn('[SleepTracker] loadSleepInDraft: no user'); return; }
   try {
     const doc = await draftRef(currentUser.uid).get();
-    if (doc.exists) {
+    if (doc.exists && doc.data()._isDraft) {
       const { bed } = doc.data();
       if (bed) {
         timeVals.bed = bed;
         setTriggerLbl('bed', bed);
+        console.log('[SleepTracker] Draft restored:', bed);
       }
     }
-  } catch(e) { console.warn('[SleepTracker] Draft load error:', e); }
+  } catch(e) { console.error('[SleepTracker] Draft load FAILED:', e.code, e.message); }
 }
 
 async function clearSleepInDraft() {
   if (!currentUser) return;
   try {
     await draftRef(currentUser.uid).delete();
-  } catch(e) { console.warn('[SleepTracker] Draft clear error:', e); }
+    console.log('[SleepTracker] Draft cleared');
+  } catch(e) { console.error('[SleepTracker] Draft clear FAILED:', e.code, e.message); }
 }
 
 // ── App state ──────────────────────────────────────────────────────────────
