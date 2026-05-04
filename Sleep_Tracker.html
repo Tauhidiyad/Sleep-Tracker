@@ -32,8 +32,28 @@ header p{color:var(--muted);font-size:.7rem;margin-top:6px;letter-spacing:.1em;t
 /* form */
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 .field label{display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:7px;}
-.field input[type=date]{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;transition:border-color .2s;color-scheme:dark;}
-.field input[type=date]:focus{border-color:var(--accent);}
+.field input[type=date]{display:none;}
+/* Date picker trigger — same look as time-trigger */
+.date-trigger{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;cursor:pointer;transition:border-color .2s,color .2s;display:flex;align-items:center;justify-content:space-between;text-align:left;}
+.date-trigger:hover{border-color:var(--accent);}
+.date-trigger.set{color:var(--text);border-color:rgba(123,110,246,.45);}
+.date-trigger svg{flex-shrink:0;opacity:.5;}
+/* Date picker overlay */
+.dp-modal{padding:22px 20px 20px;}
+.dp-drums{display:flex;align-items:flex-start;justify-content:center;gap:4px;margin-bottom:14px;}
+.dp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
+.dp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
+.dp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 2px;margin-top:28px;}
+.dp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
+.dp-drum::-webkit-scrollbar{display:none;}
+.dp-drum::before,.dp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
+.dp-drum::before{top:0;background:linear-gradient(to bottom,var(--surface2) 30%,transparent);}
+.dp-drum::after{bottom:0;background:linear-gradient(to top,var(--surface2) 30%,transparent);}
+.dp-drum-hl{position:absolute;top:50%;left:6px;right:6px;height:56px;transform:translateY(-50%);border-radius:6px;pointer-events:none;z-index:1;}
+.dp-item{height:56px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--muted);scroll-snap-align:center;cursor:pointer;user-select:none;transition:color .12s,font-size .12s;}
+.dp-item.active{color:var(--text);font-size:1.4rem;}
+.dp-pad{height:56px;flex-shrink:0;}
+.dp-readout{text-align:center;font-family:'Instrument Serif',serif;font-size:2.1rem;color:var(--accent);letter-spacing:.03em;margin-bottom:14px;}
 .dur-pill{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:1rem;color:var(--accent2);min-height:44px;display:flex;align-items:center;}
 .time-trigger{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;cursor:pointer;transition:border-color .2s, color .2s;display:flex;align-items:center;justify-content:space-between;text-align:left;}
 .time-trigger:hover{border-color:var(--accent);}
@@ -196,7 +216,11 @@ canvas{width:100%!important;}
   <div class="form-row">
     <div class="field">
       <label>Date</label>
-      <input type="date" id="inp-date">
+      <button class="date-trigger set" id="trig-date" onclick="openDatePicker()">
+        <span id="trig-date-lbl">Today</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
+      <input type="date" id="inp-date" style="display:none">
     </div>
     <div class="field">
       <label>Duration (auto)</label>
@@ -249,6 +273,34 @@ canvas{width:100%!important;}
 </div>
 
 </div><!-- /container -->
+
+<!-- DATE PICKER OVERLAY -->
+<div class="overlay" id="dp-overlay">
+  <div class="modal dp-modal">
+    <div class="tp-head">
+      <span class="tp-title">Select Date</span>
+      <button class="tp-x" onclick="closeDatePicker()">✕</button>
+    </div>
+    <div class="dp-drums">
+      <div class="dp-col">
+        <div class="dp-col-lbl">Day</div>
+        <div class="dp-drum" id="drum-day"><div class="dp-drum-hl"></div></div>
+      </div>
+      <div class="dp-sep">/</div>
+      <div class="dp-col">
+        <div class="dp-col-lbl">Month</div>
+        <div class="dp-drum" id="drum-month"><div class="dp-drum-hl"></div></div>
+      </div>
+      <div class="dp-sep">/</div>
+      <div class="dp-col" style="flex:1.4">
+        <div class="dp-col-lbl">Year</div>
+        <div class="dp-drum" id="drum-year"><div class="dp-drum-hl"></div></div>
+      </div>
+    </div>
+    <div class="dp-readout" id="dp-readout">—</div>
+    <button class="btn" onclick="confirmDatePicker()">Set Date</button>
+  </div>
+</div>
 
 <!-- TIME PICKER OVERLAY -->
 <div class="overlay" id="tp-overlay">
@@ -451,7 +503,6 @@ async function removeSession(id) {
 function draftRef(uid) {
   return sessionsRef(uid).doc('_draft');
 }
-
 async function saveSleepInDraft(bedTime) {
   if (!currentUser) { console.warn('[SleepTracker] saveSleepInDraft: no user'); return; }
   try {
@@ -459,7 +510,6 @@ async function saveSleepInDraft(bedTime) {
     console.log('[SleepTracker] Draft saved:', bedTime);
   } catch(e) { console.error('[SleepTracker] Draft save FAILED:', e.code, e.message); }
 }
-
 async function loadSleepInDraft() {
   if (!currentUser) { console.warn('[SleepTracker] loadSleepInDraft: no user'); return; }
   try {
@@ -474,7 +524,6 @@ async function loadSleepInDraft() {
     }
   } catch(e) { console.error('[SleepTracker] Draft load FAILED:', e.code, e.message); }
 }
-
 async function clearSleepInDraft() {
   if (!currentUser) return;
   try {
@@ -495,9 +544,18 @@ let pickerTarget = null;
 const HOURS  = [1,2,3,4,5,6,7,8,9,10,11,12];
 const MINS   = Array.from({length:60},(_,i)=>i);
 const ITEM_H = 56;
+const MONTHS_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.getElementById('inp-date').value = new Date().toISOString().slice(0,10);
+(function initDate(){
+  const now=new Date();
+  const iso=now.toISOString().slice(0,10);
+  document.getElementById('inp-date').value=iso;
+  const d=now.getDate(),m=now.getMonth(),y=now.getFullYear();
+  document.getElementById('trig-date-lbl').textContent=
+    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m]} ${y}`;
+  document.getElementById('trig-date').classList.add('set');
+})();
 buildDrums();
 
 // ── Type toggle ────────────────────────────────────────────────────────────
@@ -852,6 +910,101 @@ function rateEnergy(id) {
 
 document.getElementById('energy-overlay').addEventListener('click',function(e){if(e.target===this)submitEnergy(-1);});
 
+// ── Date Picker ────────────────────────────────────────────────────────────
+let _dateVal = null; // stored as {y,m,d} internally
+
+function _daysInMonth(y,m){return new Date(y,m,0).getDate();}
+
+function buildDateDrums(){
+  const now=new Date();
+  const drumDay=document.getElementById('drum-day');
+  const drumMon=document.getElementById('drum-month');
+  const drumYr=document.getElementById('drum-year');
+  function fillDp(drum,values){
+    const t=document.createElement('div');t.className='dp-pad';drum.appendChild(t);
+    values.forEach(v=>{
+      const el=document.createElement('div');el.className='dp-item';
+      el.textContent=v.label||String(v).padStart(2,'0');
+      el.dataset.v=v.val!==undefined?v.val:v;
+      drum.appendChild(el);
+    });
+    const b=document.createElement('div');b.className='dp-pad';drum.appendChild(b);
+  }
+  // Days 1-31 (will be dynamically clamped on confirm)
+  fillDp(drumDay,Array.from({length:31},(_,i)=>i+1));
+  // Months as short names
+  fillDp(drumMon,MONTHS_SHORT.map((lbl,i)=>({label:lbl,val:i+1})));
+  // Years: 2 years back to 1 year forward
+  const yStart=now.getFullYear()-2, yEnd=now.getFullYear()+1;
+  fillDp(drumYr,Array.from({length:yEnd-yStart+1},(_,i)=>yStart+i));
+  [drumDay,drumMon,drumYr].forEach(d=>d.addEventListener('scroll',()=>{dpHighlight(d);refreshDpReadout();},{passive:true}));
+}
+buildDateDrums();
+
+let _lastDpDay=-1,_lastDpMon=-1,_lastDpYr=-1;
+function dpHighlight(drum){
+  const centre=drum.scrollTop+drum.clientHeight/2;
+  drum.querySelectorAll('.dp-item').forEach(el=>{
+    const mid=el.offsetTop+el.offsetHeight/2;
+    el.classList.toggle('active',Math.abs(centre-mid)<28);
+  });
+  const cur=dpGetSelected(drum);
+  if(drum.id==='drum-day'&&cur!==_lastDpDay){_lastDpDay=cur;haptic();}
+  if(drum.id==='drum-month'&&cur!==_lastDpMon){_lastDpMon=cur;haptic();}
+  if(drum.id==='drum-year'&&cur!==_lastDpYr){_lastDpYr=cur;haptic();}
+}
+function dpSnapTo(drum,value){
+  let found=null;
+  drum.querySelectorAll('.dp-item').forEach(el=>{if(parseInt(el.dataset.v)===value)found=el;});
+  if(!found)return;
+  const target=found.offsetTop-(drum.clientHeight/2)+28;
+  drum.scrollTop=target;
+  dpHighlight(drum);
+}
+function dpGetSelected(drum){
+  const centre=drum.scrollTop+drum.clientHeight/2;
+  let best=null,bestD=Infinity;
+  drum.querySelectorAll('.dp-item').forEach(el=>{const d=Math.abs((el.offsetTop+el.offsetHeight/2)-centre);if(d<bestD){bestD=d;best=el;}});
+  return best?parseInt(best.dataset.v):0;
+}
+function refreshDpReadout(){
+  const d=dpGetSelected(document.getElementById('drum-day'));
+  const m=dpGetSelected(document.getElementById('drum-month'));
+  const y=dpGetSelected(document.getElementById('drum-year'));
+  document.getElementById('dp-readout').textContent=
+    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m-1]} ${y}`;
+}
+function openDatePicker(){
+  const now=new Date();
+  // Parse current hidden input value if set
+  let d=now.getDate(),m=now.getMonth()+1,y=now.getFullYear();
+  const cur=document.getElementById('inp-date').value;
+  if(cur){const[yy,mm,dd]=cur.split('-').map(Number);y=yy;m=mm;d=dd;}
+  document.getElementById('dp-overlay').classList.add('show');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    dpSnapTo(document.getElementById('drum-day'),d);
+    dpSnapTo(document.getElementById('drum-month'),m);
+    dpSnapTo(document.getElementById('drum-year'),y);
+    refreshDpReadout();
+  }));
+}
+function closeDatePicker(){document.getElementById('dp-overlay').classList.remove('show');}
+function confirmDatePicker(){
+  let d=dpGetSelected(document.getElementById('drum-day'));
+  const m=dpGetSelected(document.getElementById('drum-month'));
+  const y=dpGetSelected(document.getElementById('drum-year'));
+  // Clamp day to valid range for chosen month/year
+  const maxD=_daysInMonth(y,m);
+  d=Math.min(d,maxD);
+  const iso=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  document.getElementById('inp-date').value=iso;
+  document.getElementById('trig-date-lbl').textContent=
+    `${String(d).padStart(2,'0')} ${MONTHS_SHORT[m-1]} ${y}`;
+  document.getElementById('trig-date').classList.add('set');
+  haptic();closeDatePicker();
+}
+document.getElementById('dp-overlay').addEventListener('click',function(e){if(e.target===this)closeDatePicker();});
+
 // ── Time Picker ────────────────────────────────────────────────────────────
 function buildDrums() {
   const dH=document.getElementById('drum-h');
@@ -911,7 +1064,8 @@ function openPicker(target){
   document.getElementById('tp-confirm-btn').textContent=target==='bed'?'Sleep-In Time':'Woke-Up Time';
   document.getElementById('tp-overlay').classList.add('show');
   const existing=timeVals[target];
-  let h24=target==='bed'?2:8,m=0;
+  const _now=new Date();
+  let h24=_now.getHours(),m=_now.getMinutes();
   if(existing){const[hh,mm]=existing.split(':').map(Number);h24=hh;m=mm;}
   const {h:h12,ap}=to12(h24);
   setAP(ap);_lastH=h12;_lastM=m;
