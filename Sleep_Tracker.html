@@ -36,14 +36,14 @@ header p{color:var(--muted);font-size:.7rem;margin-top:6px;letter-spacing:.1em;t
 /* Date picker trigger — same look as time-trigger */
 .date-trigger{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;cursor:pointer;transition:border-color .2s,color .2s;display:flex;align-items:center;justify-content:space-between;text-align:left;}
 .date-trigger:hover{border-color:var(--accent);}
-.date-trigger.set{color:var(--text);border-color:rgba(123,110,246,.45);}
+.date-trigger.set{color:var(--text);border-color:var(--border);}
 .date-trigger svg{flex-shrink:0;opacity:.5;}
 /* Date picker overlay */
 .dp-modal{padding:22px 20px 20px;}
 .dp-drums{display:flex;align-items:flex-start;justify-content:center;gap:4px;margin-bottom:14px;}
 .dp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
 .dp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
-.dp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 2px;margin-top:28px;}
+.dp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 2px;margin-top:82px;line-height:1;}
 .dp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
 .dp-drum::-webkit-scrollbar{display:none;}
 .dp-drum::before,.dp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
@@ -278,7 +278,7 @@ canvas{width:100%!important;}
 <div class="overlay" id="dp-overlay">
   <div class="modal dp-modal">
     <div class="tp-head">
-      <span class="tp-title">Select Date</span>
+      <span class="tp-title"></span>
       <button class="tp-x" onclick="closeDatePicker()">✕</button>
     </div>
     <div class="dp-drums">
