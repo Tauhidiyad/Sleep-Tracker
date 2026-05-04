@@ -196,7 +196,12 @@ canvas{width:100%!important;}
   <div class="form-row">
     <div class="field">
       <label>Date</label>
-      <input type="date" id="inp-date">
+      <button class="time-trigger" id="trig-date" onclick="openDatePicker()">
+        <span id="trig-date-lbl">Select date</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
+      <!-- hidden input keeps YYYY-MM-DD for internal logic -->
+      <input type="hidden" id="inp-date">
     </div>
     <div class="field">
       <label>Duration (auto)</label>
@@ -274,6 +279,31 @@ canvas{width:100%!important;}
     </div>
     <div class="tp-readout" id="tp-readout">12:00 AM</div>
     <button class="btn" id="tp-confirm-btn" onclick="confirmPicker()">Sleep-In Time</button>
+  </div>
+</div>
+
+<!-- DATE PICKER OVERLAY -->
+<div class="overlay" id="dp-overlay">
+  <div class="modal tp-modal">
+    <div class="tp-head">
+      <span class="tp-title">Date</span>
+      <button class="tp-x" onclick="closeDatePicker()">✕</button>
+    </div>
+    <div class="tp-drums">
+      <div class="tp-col">
+        <div class="tp-drum" id="drum-day"><div class="tp-drum-hl"></div></div>
+      </div>
+      <div class="tp-sep" style="font-size:1.4rem;margin-top:70px;">/</div>
+      <div class="tp-col">
+        <div class="tp-drum" id="drum-mon"><div class="tp-drum-hl"></div></div>
+      </div>
+      <div class="tp-sep" style="font-size:1.4rem;margin-top:70px;">/</div>
+      <div class="tp-col">
+        <div class="tp-drum" id="drum-yr"><div class="tp-drum-hl"></div></div>
+      </div>
+    </div>
+    <div class="tp-readout" id="dp-readout">01 / 01 / 2026</div>
+    <button class="btn" onclick="confirmDatePicker()">Set Date</button>
   </div>
 </div>
 
@@ -359,7 +389,7 @@ auth.onAuthStateChanged(user => {
 function showApp(user) {
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('app-container').style.display = '';
-  pendingSleepInLoad();
+  restorePendingBedTime(); // auto-fill Sleep In time saved from last night
 }
 
 function signOut() {
@@ -458,9 +488,45 @@ const HOURS  = [1,2,3,4,5,6,7,8,9,10,11,12];
 const MINS   = Array.from({length:60},(_,i)=>i);
 const ITEM_H = 56;
 
+// ── Pending Sleep-In (cloud draft) ─────────────────────────────────────────
+function pendingRef(uid) {
+  return db.collection('users').doc(uid).collection('drafts').doc('pendingBedTime');
+}
+
+async function savePendingBedTime(time, date, type) {
+  if (!currentUser) { _writeQueue.push(() => savePendingBedTime(time, date, type)); return; }
+  try {
+    await pendingRef(currentUser.uid).set({ time, date, type, savedAt: Date.now() });
+    console.log('[SleepTracker] Pending bed time saved to cloud:', time);
+  } catch(e) { console.warn('[SleepTracker] Could not save pending bed time:', e); }
+}
+
+async function clearPendingBedTime() {
+  if (!currentUser) return;
+  try {
+    await pendingRef(currentUser.uid).delete();
+  } catch(e) { console.warn('[SleepTracker] Could not clear pending bed time:', e); }
+}
+
+async function restorePendingBedTime() {
+  if (!currentUser) return;
+  try {
+    const doc = await pendingRef(currentUser.uid).get();
+    if (!doc.exists) return;
+    const { time, date, type } = doc.data();
+    if (!time) return;
+    timeVals.bed = time;
+    setTriggerLbl('bed', time);
+    if (date) { setDateVal(date); }
+    if (type) setType(type);
+    console.log('[SleepTracker] Restored pending bed time from cloud:', time);
+  } catch(e) { console.warn('[SleepTracker] Could not restore pending bed time:', e); }
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
-document.getElementById('inp-date').value = new Date().toISOString().slice(0,10);
+// date set via date picker after buildDateDrums()
 buildDrums();
+buildDateDrums();
 
 // ── Type toggle ────────────────────────────────────────────────────────────
 function setType(t) {
@@ -479,7 +545,7 @@ function calcDur(bed,wake) {
   return +(m/60).toFixed(2);
 }
 function fmtDur(h) { return `${Math.floor(h)}H ${String(Math.round((h%1)*60)).padStart(2,'0')}M`; }
-function fmtDate(iso) { return new Date(iso+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
+function fmtDate(iso) { const d=new Date(iso+'T12:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
 function durClass(h,type) {
   if(type==='nap') return h<=1.5?'tag-good':'tag-warn';
   return h>=7&&h<=9?'tag-good':h>=5?'tag-warn':'tag-bad';
@@ -499,8 +565,8 @@ function addEntry() {
   sessions.push(entry);
   sessions.sort((a,b) => (a.date+a.bed).localeCompare(b.date+b.bed));
   render();
-  saveSession(entry);
-  pendingSleepInClear();
+  saveSession(entry); // persist to Firestore in background
+  clearPendingBedTime(); // clear the pending sleep-in time from cloud
   timeVals.bed=null; timeVals.wake=null;
   setTriggerLbl('bed',null); setTriggerLbl('wake',null);
   document.getElementById('dur-display').textContent='—';
@@ -814,6 +880,126 @@ function rateEnergy(id) {
 
 document.getElementById('energy-overlay').addEventListener('click',function(e){if(e.target===this)submitEnergy(-1);});
 
+// ── Date Picker ────────────────────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CUR_YEAR = new Date().getFullYear();
+const YEARS = Array.from({length:5},(_,i)=>CUR_YEAR-2+i); // 2 past, current, 2 future
+
+function daysInMonth(month1based, year){ return new Date(year, month1based, 0).getDate(); }
+
+function buildDateDrums(){
+  const dDay=document.getElementById('drum-day');
+  const dMon=document.getElementById('drum-mon');
+  const dYr=document.getElementById('drum-yr');
+  function fillDrumDate(drum,values,fmt){
+    const t=document.createElement('div');t.className='tp-pad';drum.appendChild(t);
+    values.forEach((v,i)=>{
+      const el=document.createElement('div');el.className='tp-item';
+      el.textContent=fmt?fmt(v,i):String(v).padStart(2,'0');
+      el.dataset.v=typeof v==='number'?v:i+1;
+      drum.appendChild(el);
+    });
+    const b=document.createElement('div');b.className='tp-pad';drum.appendChild(b);
+  }
+  const days=Array.from({length:31},(_,i)=>i+1);
+  fillDrumDate(dDay,days);
+  fillDrumDate(dMon,Array.from({length:12},(_,i)=>i+1));
+  fillDrumDate(dYr,YEARS,(v)=>String(v));
+  let _lastDay=-1,_lastMon=-1,_lastYr=-1;
+  [dDay,dMon,dYr].forEach(drum=>{
+    drum.addEventListener('scroll',()=>{
+      highlightCentreDp(drum);
+      refreshDateReadout();
+      const cur=getSelectedDp(drum);
+      if(drum.id==='drum-day'&&cur!==_lastDay){_lastDay=cur;haptic();}
+      if(drum.id==='drum-mon'&&cur!==_lastMon){_lastMon=cur;haptic();}
+      if(drum.id==='drum-yr'&&cur!==_lastYr){_lastYr=cur;haptic();}
+    },{passive:true});
+  });
+  // Set today as default
+  const today=new Date();
+  setDateVal(today.toISOString().slice(0,10));
+  // Snap drums to today
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    snapDrumDp(dDay, today.getDate());
+    snapDrumDp(dMon, today.getMonth()+1); // dataset.v is 1-based index for months
+    snapDrumDp(dYr, today.getFullYear());
+    refreshDateReadout();
+  }));
+}
+
+function highlightCentreDp(drum){
+  const centre=drum.scrollTop+drum.clientHeight/2;
+  drum.querySelectorAll('.tp-item').forEach(el=>{
+    const mid=el.offsetTop+el.offsetHeight/2;
+    el.classList.toggle('active',Math.abs(centre-mid)<ITEM_H/2);
+  });
+}
+
+function snapDrumDp(drum,value){
+  let found=null;
+  drum.querySelectorAll('.tp-item').forEach(el=>{if(parseInt(el.dataset.v)===value)found=el;});
+  if(!found)return;
+  const target=found.offsetTop-(drum.clientHeight/2)+(ITEM_H/2);
+  drum.scrollTop=target;
+  highlightCentreDp(drum);
+}
+
+function getSelectedDp(drum){
+  const centre=drum.scrollTop+drum.clientHeight/2;
+  let best=null,bestD=Infinity;
+  drum.querySelectorAll('.tp-item').forEach(el=>{const d=Math.abs((el.offsetTop+el.offsetHeight/2)-centre);if(d<bestD){bestD=d;best=el;}});
+  return best?parseInt(best.dataset.v):1;
+}
+
+function refreshDateReadout(){
+  const d=getSelectedDp(document.getElementById('drum-day'));
+  const m=getSelectedDp(document.getElementById('drum-mon'));
+  const y=getSelectedDp(document.getElementById('drum-yr'));
+  document.getElementById('dp-readout').textContent=`${String(d).padStart(2,'0')} / ${String(m).padStart(2,'0')} / ${y}`;
+}
+
+function openDatePicker(){
+  document.getElementById('dp-overlay').classList.add('show');
+  // Snap to current stored date
+  const cur=document.getElementById('inp-date').value;
+  let d=new Date().getDate(), mo=new Date().getMonth()+1, yr=new Date().getFullYear();
+  if(cur){ const p=cur.split('-'); yr=parseInt(p[0]); mo=parseInt(p[1]); d=parseInt(p[2]); }
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    snapDrumDp(document.getElementById('drum-day'),d);
+    snapDrumDp(document.getElementById('drum-mon'),mo);
+    snapDrumDp(document.getElementById('drum-yr'),yr);
+    refreshDateReadout();
+  }));
+  haptic();
+}
+
+function closeDatePicker(){ document.getElementById('dp-overlay').classList.remove('show'); }
+
+function confirmDatePicker(){
+  const d=getSelectedDp(document.getElementById('drum-day'));
+  const mo=getSelectedDp(document.getElementById('drum-mon'));
+  const yr=getSelectedDp(document.getElementById('drum-yr'));
+  // Clamp day to valid range for chosen month/year
+  const maxDay=daysInMonth(mo,yr);
+  const safeD=Math.min(d,maxDay);
+  const iso=`${yr}-${String(mo).padStart(2,'0')}-${String(safeD).padStart(2,'0')}`;
+  setDateVal(iso);
+  closeDatePicker(); haptic();
+}
+
+function setDateVal(iso){
+  document.getElementById('inp-date').value=iso;
+  // Display as DD / MM / YYYY
+  const p=iso.split('-');
+  const lbl=`${p[2]} / ${p[1]} / ${p[0]}`;
+  const btn=document.getElementById('trig-date');
+  document.getElementById('trig-date-lbl').textContent=lbl;
+  btn.classList.add('set');
+}
+
+document.getElementById('dp-overlay').addEventListener('click',function(e){if(e.target===this)closeDatePicker();});
+
 // ── Time Picker ────────────────────────────────────────────────────────────
 function buildDrums() {
   const dH=document.getElementById('drum-h');
@@ -873,7 +1059,7 @@ function openPicker(target){
   document.getElementById('tp-confirm-btn').textContent=target==='bed'?'Sleep-In Time':'Woke-Up Time';
   document.getElementById('tp-overlay').classList.add('show');
   const existing=timeVals[target];
-  const _now=new Date();let h24=_now.getHours(),m=_now.getMinutes();
+  const now=new Date();let h24=now.getHours(),m=now.getMinutes();
   if(existing){const[hh,mm]=existing.split(':').map(Number);h24=hh;m=mm;}
   const {h:h12,ap}=to12(h24);
   setAP(ap);_lastH=h12;_lastM=m;
@@ -892,44 +1078,14 @@ function confirmPicker(){
   const str=`${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   timeVals[pickerTarget]=str;
   setTriggerLbl(pickerTarget,str);
+  // Persist Sleep In time to Firestore cloud so it survives page close/refresh on any device
+  if(pickerTarget==='bed'){
+    const dateVal=document.getElementById('inp-date').value;
+    savePendingBedTime(str, dateVal, currentType);
+  }
   if(timeVals.bed&&timeVals.wake)
     document.getElementById('dur-display').textContent=fmtDur(calcDur(timeVals.bed,timeVals.wake));
-  if(pickerTarget==='bed') pendingSleepInWrite(str);
   haptic();closePicker();
-}
-
-// Pending Sleep-In cloud persistence
-function _userRef(){ return db.collection('users').doc(currentUser.uid); }
-
-function pendingSleepInWrite(bedTime){
-  if(currentUser){
-    _userRef().set({pendingSleepIn: bedTime}, {merge:true}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e));
-  } else {
-    _writeQueue.push(()=>_userRef().set({pendingSleepIn: bedTime}, {merge:true}).catch(e=>console.warn('[SleepTracker] pendingSleepIn write failed:',e)));
-  }
-}
-
-function pendingSleepInClear(){
-  if(currentUser){
-    _userRef().update({pendingSleepIn: firebase.firestore.FieldValue.delete()}).catch(e=>console.warn('[SleepTracker] pendingSleepIn clear failed:',e));
-  }
-}
-
-async function pendingSleepInLoad(){
-  if(!currentUser) return;
-  try{
-    const doc=await _userRef().get({source:'server'});
-    if(doc.exists){
-      const data=doc.data();
-      if(data.pendingSleepIn && !timeVals.bed){ timeVals.bed=data.pendingSleepIn; setTriggerLbl('bed',data.pendingSleepIn); }
-    }
-  }catch(e){
-    // fallback to cache if server unreachable
-    try{
-      const doc=await _userRef().get();
-      if(doc.exists){ const data=doc.data(); if(data.pendingSleepIn&&!timeVals.bed){ timeVals.bed=data.pendingSleepIn; setTriggerLbl('bed',data.pendingSleepIn); } }
-    }catch(e2){ console.warn('[SleepTracker] pendingSleepIn load failed:',e2); }
-  }
 }
 function setTriggerLbl(target,val){
   const lbl=document.getElementById(`trig-${target}-lbl`);
