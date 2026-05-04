@@ -43,7 +43,7 @@ header p{color:var(--muted);font-size:.7rem;margin-top:6px;letter-spacing:.1em;t
 .dp-drums{display:flex;align-items:flex-start;justify-content:center;gap:4px;margin-bottom:14px;}
 .dp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
 .dp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
-.dp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 2px;margin-top:82px;line-height:1;}
+.dp-sep{font-family:'DM Mono',monospace;font-size:1rem;color:var(--muted);padding:0 1px;margin-top:92px;line-height:1;}
 .dp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
 .dp-drum::-webkit-scrollbar{display:none;}
 .dp-drum::before,.dp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
@@ -151,7 +151,7 @@ canvas{width:100%!important;}
 .tp-drums{display:flex;align-items:flex-start;justify-content:center;gap:0;margin-bottom:14px;}
 .tp-col{flex:1;display:flex;flex-direction:column;align-items:center;}
 .tp-col-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px;}
-.tp-sep{font-family:'Instrument Serif',serif;font-size:2.2rem;color:var(--border);padding:0 4px;margin-top:28px;}
+.tp-sep{font-family:'DM Mono',monospace;font-size:1.2rem;color:var(--muted);padding:0 2px;margin-top:82px;line-height:1;}
 .tp-drum{width:100%;height:168px;overflow-y:scroll;overflow-x:hidden;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;border-radius:12px;border:1px solid var(--border);background:var(--surface2);}
 .tp-drum::-webkit-scrollbar{display:none;}
 .tp-drum::before,.tp-drum::after{content:'';position:sticky;display:block;left:0;right:0;height:56px;pointer-events:none;z-index:2;}
@@ -1060,7 +1060,7 @@ function setAP(val){
 }
 function openPicker(target){
   pickerTarget=target;
-  document.getElementById('tp-title').textContent=target==='bed'?'Sleep In':'Woke Up';
+  document.getElementById('tp-title').textContent='';
   document.getElementById('tp-confirm-btn').textContent=target==='bed'?'Sleep-In Time':'Woke-Up Time';
   document.getElementById('tp-overlay').classList.add('show');
   const existing=timeVals[target];
